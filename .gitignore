@@ -1,0 +1,10 @@
+deps/*
+ebin/*.beam
+.rebar/*
+.eunit/*
+test/*.beam
+.erlang.mk/*
+rel/*
+_rel/*
+relx
+azuqua.erl.d
