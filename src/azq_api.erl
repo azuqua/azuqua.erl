@@ -30,11 +30,7 @@
          async_schedule/2,
          yield_schedule/1]).
 
--record(api_state, {key = <<>>, secret = <<>>, opts = #{}, promises=#{},
-                    flos = #{}}).
--record(promise, {return, ref, data, client}).
--record(request, {path = <<>>, qs = <<>>, body = <<>>, headers = [],
-                  method = get}).
+-include("azq_api.hrl").
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% INTERFACE FUNCTIONS %%%
@@ -203,9 +199,7 @@ yield_schedule(Ref) ->
 
 init([Key, Secret]) ->
   HeaderOpts = #{<<"Content-Type">> => <<"application/json">>},
-  Opts = #{host => <<"api.azuqua.com">>,
-           port => 443,
-           protocol => <<"https">>,
+  Opts = #{base => <<"https://api.azuqua.com:443">>,
            headers => HeaderOpts},
   init([Key, Secret, Opts]);
 init([Key, Secret, Opts]) when is_list(Key) ->
@@ -232,73 +226,82 @@ terminate(_Reason, _State) ->
 handle_call({sign_data, Data, Verb, Path, Time}, _From, State) ->
   Secret = State#api_state.secret,
   NData = azq_api_utils:sign_data(Secret, Data, Verb, Path, Time),
-  {reply, NData, State};
+  {reply, {ok, NData}, State};
 handle_call(async_get_flos, _From, State) ->
-  Ref = erlang:make_ref(),
-  NState = promise_get_flos(Ref, State),
+  {Ref, NState} = promise_get_flos(State),
   {reply, Ref, NState};
 handle_call(get_flos, From, State) ->
-  Ref = erlang:make_ref(),
-  NState = promise_get_flos(Ref, State),
+  {Ref, NState} = promise_get_flos(State),
   Execs = NState#api_state.promises,
   NExecs = attach_promise(Ref, From, Execs),
   {noreply, NState#api_state{promises=NExecs}};
 handle_call({async_retry, Flo, Data}, _From, State) ->
-  Ref = erlang:make_ref(),
-  NState = promise_retry(Ref, Flo, Data, State),
+  {Ref, NState} = promise_retry(Flo, Data, State),
   {reply, Ref, NState};
 handle_call({retry, Flo, Data}, From, State) ->
-  Ref = erlang:make_ref(),
-  NState = promise_retry(Ref, Flo, Data, State),
+  {Ref, NState} = promise_retry(Flo, Data, State),
   Execs = NState#api_state.promises,
   NExecs = attach_promise(Ref, From, Execs),
   {noreply, NState#api_state{promises=NExecs}};
 handle_call({async_invoke, Flo, Data}, _From, State) ->
-  Ref = erlang:make_ref(),
-  NState = promise_invoke(Ref, Flo, Data, State),
+  {Ref, NState} = promise_invoke(Flo, Data, State),
   {reply, Ref, NState};
 handle_call({invoke, Flo, Data}, From, State) ->
-  Ref = erlang:make_ref(),
-  NState = promise_invoke(Ref, Flo, Data, State),
+  {Ref, NState} = promise_invoke(Flo, Data, State),
   Execs = NState#api_state.promises,
   NExecs = attach_promise(Ref, From, Execs),
   {noreply, NState#api_state{promises=NExecs}};
 handle_call({async_inputs, Flo}, _From, State) ->
-  Ref = erlang:make_ref(),
-  NState = promise_inputs(Ref, Flo, State),
+  {Ref, NState} = promise_inputs(Flo, State),
   {reply, Ref, NState};
 handle_call({inputs, Flo}, From, State) ->
-  Ref = erlang:make_ref(),
-  NState = promise_inputs(Ref, Flo, State),
+  {Ref, NState} = promise_inputs(Flo, State),
   Execs = NState#api_state.promises,
   NExecs = attach_promise(Ref, From, Execs),
   {noreply, NState#api_state{promises=NExecs}};
 handle_call({async_inject, Flo, Data}, _From, State) ->
-  Ref = erlang:make_ref(),
-  NState = promise_inject(Ref, Flo, Data, State),
+  {Ref, NState} = promise_inject(Flo, Data, State),
   {reply, Ref, NState};
 handle_call({inputs, Flo, Data}, From, State) ->
-  Ref = erlang:make_ref(),
-  NState = promise_inject(Ref, Flo, Data, State),
+  {Ref, NState} = promise_inject(Flo, Data, State),
   Execs = NState#api_state.promises,
   NExecs = attach_promise(Ref, From, Execs),
   {noreply, NState#api_state{promises=NExecs}};
 handle_call({async_schedule, Flo, Data}, _From, State) ->
-  Ref = erlang:make_ref(),
-  NState = promise_schedule(Ref, Flo, Data, State),
+  {Ref, NState} = promise_schedule(Flo, Data, State),
   {reply, Ref, NState};
 handle_call({schedule, Flo, Data}, From, State) ->
-  Ref = erlang:make_ref(),
-  NState = promise_schedule(Ref, Flo, Data, State),
+  {Ref, NState} = promise_schedule(Flo, Data, State),
   Execs = NState#api_state.promises,
   NExecs = attach_promise(Ref, From, Execs),
-  {noreply, NState#api_state{promises=NExecs}}.
+  {noreply, NState#api_state{promises=NExecs}};
+handle_call({yield, Ref}, From, State) ->
+  yield_promise(Ref, From, State).
 
 handle_cast(_Ref, _State) ->
   ok.
 
-handle_info(_Info, _State) ->
-  ok.
+handle_info({hackney_response, CRef, {status, Status, _Reason}}, State) when Status >= 400 ->
+  P = maps:get(CRef, State#api_state.promises),
+  P2 = P#promise{data={error, <<>>}},
+  NExecs = maps:put(CRef, P2, State#api_state.promises),
+  {noreply, State#api_state{promises=NExecs}};
+handle_info({hackney_response, CRef, {status, _Status, _Reason}}, State) ->
+  P = maps:get(CRef, State#api_state.promises),
+  P2 = P#promise{data={ok, <<>>}},
+  NExecs = maps:put(CRef, P2, State#api_state.promises),
+  {noreply, State#api_state{promises=NExecs}};
+handle_info({hackney_response, _CRef, {headers, _Headers}}, State) ->
+  {noreply, State};
+handle_info({hackney_response, CRef, Bin}, State) when is_binary(Bin) ->
+  P = maps:get(CRef, State#api_state.promises),
+  {At, Bin0} = P#promise.data,
+  P2 = P#promise{data={At, <<Bin0/binary, Bin/binary>>}},
+  NExecs = maps:put(CRef, P2, State#api_state.promises),
+  {noreply, State#api_state{promises=NExecs}};
+handle_info({hackney_response, CRef, done}, State) ->
+  P = maps:get(CRef, State#api_state.promises),
+  check_promise_state(P, State).
 
 code_change(_OldVsn, _State, _Extra) ->
   ok.
@@ -307,66 +310,72 @@ code_change(_OldVsn, _State, _Extra) ->
 %%% HELPER FUNCTIONS %%%
 %%%%%%%%%%%%%%%%%%%%%%%%
 
-promise_get_flos(Ref, State) ->
+promise_get_flos(State) ->
   Request = #request{path = <<"/account/flos">>, method = get},
   {ok, CRef} = async_request(Request, State),
-  create_promise(Ref, CRef, State).
+  create_promise(CRef, State).
 
-promise_retry(Ref, Flo, Data, State) ->
+promise_retry(Flo, Data, State) ->
   Path = << <<"/flo/">>/binary, Flo/binary, <<"/retry">>/binary >>,
   Request = #request{path = Path, body = Data, method = post},
   {ok, CRef} = async_request(Request, State),
-  create_promise(Ref, CRef, State).
+  create_promise(CRef, State).
 
-promise_invoke(Ref, Flo, Data, State) ->
+promise_invoke(Flo, Data, State) ->
   Path = << <<"/flo/">>/binary, Flo/binary, <<"/invoke">>/binary >>,
   Request = #request{path = Path, body = Data, method = post},
   {ok, CRef} = async_request(Request, State),
-  create_promise(Ref, CRef, State).
+  create_promise(CRef, State).
 
-promise_inputs(Ref, Flo, State) ->
+promise_inputs(Flo, State) ->
   Path = << <<"/flo/">>/binary, Flo/binary, <<"/inputs">>/binary >>,
   Request = #request{path = Path, method = get},
   {ok, CRef} = async_request(Request, State),
-  create_promise(Ref, CRef, State).
+  create_promise(CRef, State).
 
-promise_inject(Ref, Flo, Data, State) ->
+promise_inject(Flo, Data, State) ->
   Path = << <<"/flo/">>/binary, Flo/binary, <<"/inject">>/binary >>,
   Request = #request{path = Path, body = Data, method = post},
   {ok, CRef} = async_request(Request, State),
-  create_promise(Ref, CRef, State).
+  create_promise(CRef, State).
 
-promise_schedule(Ref, Flo, Data, State) ->
+promise_schedule(Flo, Data, State) ->
   Path = << <<"/flo/">>/binary, Flo/binary, <<"/schedule">>/binary >>,
   Request = #request{path = Path, body = Data, method = post},
   {ok, CRef} = async_request(Request, State),
-  create_promise(Ref, CRef, State).
+  create_promise(CRef, State).
 
 attach_promise(Ref, From, Execs) ->
   RefExec = maps:get(Ref, Execs),
   maps:put(Ref, RefExec#promise{return=From}, Execs).
 
-create_promise(Ref, CRef, State) ->
+create_promise(CRef, State) ->
   Execs = State#api_state.promises,
-  NExecs = maps:put(Ref, #promise{ref=Ref, client=CRef}, Execs),
+  NExecs = maps:put(CRef, #promise{cref=CRef, state=init}, Execs),
   State#api_state{promises=NExecs}.
 
-async_request(#request{method=Method, qs=QS, headers=Headers, body=Body,
-                       path=Path}, State) ->
-  URL = azq_api_utils:construct_url(State#api_state.opts, Path, QS),
-  NHeaders = azq_api_utils:construct_headers(State#api_state.opts, Headers),
-  Opts = [async, {connect_timeout}, {recv_timeout}],
-  hackney:request(Method, URL, NHeaders, Body, Opts).
+remove_promise(Ref, State) ->
+  Execs = State#api_state.promises,
+  NExecs = maps:remove(Ref, Execs),
+  State#api_state{promises=NExecs}.
 
-parse_yield(get_flos, Res) ->
+async_request(Req = #request{method=M, body=B}, State) ->
+  URL = azq_api_utils:construct_url(Req, State),
+  H = azq_api_utils:construct_headers(Req, State),
+  Opts = [async, {connect_timeout}, {recv_timeout}],
+  hackney:request(M, URL, H, B, Opts).
+
+parse_yield(get_flos, {ok, Res}) ->
   Parsed = jiffy:decode(Res, [return_maps]),
-  lists:map(Parsed, fun parse_get_flos_return/1);
-parse_yield(flo, Res) ->
-  jiffy:decode(Res, [return_maps]);
-parse_yield(inputs, Res) ->
-  jiffy:decode(Res, [return_maps]);
-parse_yield(schedule, Res) ->
-  jiffy:decode(Res, [return_maps]).
+  {ok, lists:map(Parsed, fun parse_get_flos_return/1)};
+parse_yield(flo, {ok, Res}) ->
+  {ok, jiffy:decode(Res, [return_maps])};
+parse_yield(inputs, {ok, Res}) ->
+  {ok, jiffy:decode(Res, [return_maps])};
+parse_yield(schedule, {ok, Res}) ->
+  {ok, jiffy:decode(Res, [return_maps])};
+parse_yield(_, {error, Res}) ->
+  {error, jiffy:decode(Res, [return_maps])}.
 
 parse_get_flos_return(Flo) ->
   Select = [<<"id">>,
@@ -377,3 +386,25 @@ parse_get_flos_return(Flo) ->
             <<"active">>,
             <<"published">>],
   maps:with(Flo, Select).
+
+yield_promise(Ref, From, State) ->
+  Execs = State#api_state.promises,
+  Exec = maps:get(Ref, Execs, undefined),
+  find_promise(Exec, Ref, From, State).
+
+find_promise(undefined, _Ref, _From, State) ->
+  {reply, {error, enoref}, State};
+find_promise(P = #promise{return=undefined}, Ref, From, State) ->
+  P2 = P#promise{return=From},
+  NExecs = attach_promise(Ref, P2, State#api_state.promises),
+  State2 = State#api_state{promises=NExecs},
+  check_promise_state(P2, State2);
+find_promise(_, _, _, State) ->
+  {reply, {error, eyielded}, State}.
+
+check_promise_state(P = #promise{state=done, return=From, data=Res}, State) ->
+  gen_server:reply(From, Res),
+  State2 = remove_promise(P, State),
+  {noreply, State2};
+check_promise_state(_, State) ->
+  {noreply, State}.
