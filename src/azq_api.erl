@@ -2,11 +2,11 @@
 
 -behavior(gen_server).
 
--export([init/1, 
-         terminate/2, 
-         handle_call/3, 
-         handle_cast/2, 
-         handle_info/2, 
+-export([init/1,
+         terminate/2,
+         handle_call/3,
+         handle_cast/2,
+         handle_info/2,
          code_change/3]).
 -export([new/2,
          new/3,
@@ -37,10 +37,10 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 new(Key, Secret) ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [Key, Secret]).
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [Key, Secret], []).
 
 new(Key, Secret, Opts) ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [Key, Secret, Opts]).
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [Key, Secret, Opts], []).
 
 sign_data(Data = #{}, Verb, Path, Time) ->
   BData = jiffy:encode(Data),
@@ -50,7 +50,7 @@ sign_data(Data, Verb, Path, Time) when is_list(Data) ->
   sign_data(BData, Verb, Path, Time);
 sign_data(Data, _, _, _) when not is_binary(Data) ->
   {error, ebadsign};
-sign_data(_, Verb, _, _) when not is_binary(Verb) ->
+sign_data(_, Verb, _, _) when not is_atom(Verb) ->
   {error, ebadverb};
 sign_data(_, _, Path, _) when not is_binary(Path) ->
   {error, ebadpath};
@@ -198,7 +198,7 @@ yield_schedule(Ref) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 init([Key, Secret]) ->
-  HeaderOpts = #{<<"Content-Type">> => <<"application/json">>},
+  HeaderOpts = [{<<"Content-Type">>, <<"application/json">>}],
   Opts = #{base => <<"https://api.azuqua.com:443">>,
            headers => HeaderOpts},
   init([Key, Secret, Opts]);

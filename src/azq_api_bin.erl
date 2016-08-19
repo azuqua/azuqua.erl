@@ -9,8 +9,10 @@ join(List, Del) when is_binary(Del) ->
 
 join([], _Del, Acc) ->
   Acc;
+join([H], _Del, Acc) ->
+  <<Acc/binary, H/binary>>;
 join([H | T], Del, Acc) ->
-  join(T, Del, <<Acc/binary, Del/binary, H/binary>>).
+  join(T, Del, <<Acc/binary, H/binary, Del/binary>>).
 
 to_lower_case(Bin) when is_binary(Bin) ->
   << <<(char_to_lower(A))>> || <<A:8>> <= Bin>>.
@@ -18,7 +20,7 @@ to_lower_case(Bin) when is_binary(Bin) ->
 char_to_lower(C) when C >= $a andalso C =< $z ->
   C;
 char_to_lower(C) when C >= $A andalso C =< $Z ->
-  C - 32;
+  C + 32;
 char_to_lower(C) ->
   C.
 

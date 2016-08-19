@@ -3,15 +3,29 @@
 -export([sign_data/5,
          create_timestamp/0,
          construct_url/2,
-         construct_headers/2]).
+         construct_headers/2,
+         add_base/2,
+         add_content_length/3,
+         add_timestamp/2,
+         add_key/2,
+         add_hash/2]).
 
 -include("azq_api.hrl").
 
 sign_data(Secret, Data, Verb, Path, Time) ->
-  NVerb = azq_api_bin:to_lower_case(Verb),
+  NVerb = verb_to_bin(Verb),
   Prefix = azq_api_bin:join([NVerb, Path, Time], <<":">>),
   NData = <<Prefix/binary, Data/binary>>,
   azq_api_bin:to_hex(crypto:hmac(sha256, Secret, NData)).
+
+verb_to_bin(get) ->
+  <<"get">>;
+verb_to_bin(post) ->
+  <<"post">>;
+verb_to_bin(put) ->
+  <<"put">>;
+verb_to_bin(delete) ->
+  <<"delete">>.
 
 create_timestamp() ->
   erlang:integer_to_binary(erlang:system_time(milli_seconds)).
