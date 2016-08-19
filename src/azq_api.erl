@@ -369,7 +369,7 @@ attach_promise(Ref, From, Execs) ->
 create_promise(CRef, State) ->
   Execs = State#api_state.promises,
   NExecs = maps:put(CRef, #promise{cref=CRef, state=init}, Execs),
-  State#api_state{promises=NExecs}.
+  {CRef, State#api_state{promises=NExecs}}.
 
 remove_promise(Ref, State) ->
   Execs = State#api_state.promises,

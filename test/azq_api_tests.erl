@@ -192,7 +192,7 @@ async_schedule_error(S) ->
 create_promise() ->
   Ref = erlang:make_ref(),
   State = #api_state{},
-  NState = azq_api:create_promise(Ref, State),
+  {Ref, NState} = azq_api:create_promise(Ref, State),
   P = maps:get(Ref, NState#api_state.promises),
   ?_assertMatch(#promise{cref=Ref, state=init}, P).
 
@@ -200,7 +200,7 @@ attach_promise() ->
   Ref = erlang:make_ref(),
   From = erlang:make_ref(),
   State = #api_state{},
-  State1 = azq_api:create_promise(Ref, State),
+  {Ref, State1} = azq_api:create_promise(Ref, State),
   Execs = azq_api:attach_promise(Ref, From, State1#api_state.promises),
   P = maps:get(Ref, Execs),
   ?_assertMatch(#promise{cref=Ref, return=From, state=init}, P).
@@ -208,7 +208,7 @@ attach_promise() ->
 remove_promise() ->
   Ref = erlang:make_ref(),
   State = #api_state{},
-  State1 = azq_api:create_promise(Ref, State),
+  {Ref, State1} = azq_api:create_promise(Ref, State),
   State2 = azq_api:remove_promise(Ref, State1),
   P = maps:get(Ref, State2#api_state.promises, undefined),
   ?_assertEqual(P, undefined).
