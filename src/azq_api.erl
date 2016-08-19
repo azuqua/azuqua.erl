@@ -380,7 +380,7 @@ async_request(Req = #request{method=M, body=B}, State) ->
 
 parse_yield(get_flos, {ok, Res}) ->
   Parsed = jiffy:decode(Res, [return_maps]),
-  {ok, lists:map(Parsed, fun parse_get_flos_return/1)};
+  {ok, lists:map(fun parse_get_flos_return/1, Parsed)};
 parse_yield(flo, {ok, Res}) ->
   {ok, jiffy:decode(Res, [return_maps])};
 parse_yield(inputs, {ok, Res}) ->
@@ -398,7 +398,7 @@ parse_get_flos_return(Flo) ->
             <<"org_id">>,
             <<"active">>,
             <<"published">>],
-  maps:with(Flo, Select).
+  maps:with(Select, Flo).
 
 yield_promise(Ref, From, State) ->
   Execs = State#api_state.promises,
