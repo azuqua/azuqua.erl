@@ -10,25 +10,26 @@
          code_change/3]).
 -export([new/2,
          new/3,
-         sign_data/4,
-         get_flos/0,
-         async_get_flos/0,
-         yield_get_flos/1,
-         retry/2,
-         async_retry/2,
-         yield_retry/1,
-         invoke/2,
-         async_invoke/2,
-         yield_invoke/1,
-         inputs/1,
-         async_inputs/1,
-         yield_inputs/1,
-         inject/2,
-         async_inject/2,
-         yield_inject/1,
-         schedule/2,
-         async_schedule/2,
-         yield_schedule/1]).
+         stop/1,
+         sign_data/5,
+         get_flos/1,
+         async_get_flos/1,
+         yield_get_flos/2,
+         retry/3,
+         async_retry/3,
+         yield_retry/2,
+         invoke/3,
+         async_invoke/3,
+         yield_invoke/2,
+         inputs/2,
+         async_inputs/2,
+         yield_inputs/2,
+         inject/3,
+         async_inject/3,
+         yield_inject/2,
+         schedule/3,
+         async_schedule/3,
+         yield_schedule/2]).
 -export([promise_get_flos/1,
          promise_retry/3,
          promise_invoke/3,
@@ -50,160 +51,163 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 new(Key, Secret) ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [Key, Secret], []).
+  gen_server:start_link(?MODULE, [Key, Secret], []).
 
 new(Key, Secret, Opts) ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [Key, Secret, Opts], []).
+  gen_server:start_link(?MODULE, [Key, Secret, Opts], []).
 
-sign_data(Data = #{}, Verb, Path, Time) ->
+stop(C) ->
+  gen_server:stop(C).
+
+sign_data(C, Data = #{}, Verb, Path, Time) ->
   BData = jiffy:encode(Data),
-  sign_data(BData, Verb, Path, Time);
-sign_data(Data, Verb, Path, Time) when is_list(Data) ->
+  sign_data(C, BData, Verb, Path, Time);
+sign_data(C, Data, Verb, Path, Time) when is_list(Data) ->
   BData = jiffy:encode({Data}),
-  sign_data(BData, Verb, Path, Time);
-sign_data(Data, _, _, _) when not is_binary(Data) ->
+  sign_data(C, BData, Verb, Path, Time);
+sign_data(_, Data, _, _, _) when not is_binary(Data) ->
   {error, ebadsign};
-sign_data(_, Verb, _, _) when not is_atom(Verb) ->
+sign_data(_, _, Verb, _, _) when not is_atom(Verb) ->
   {error, ebadverb};
-sign_data(_, _, Path, _) when not is_binary(Path) ->
+sign_data(_, _, _, Path, _) when not is_binary(Path) ->
   {error, ebadpath};
-sign_data(_, _, _, Time) when not is_binary(Time) ->
+sign_data(_, _, _, _, Time) when not is_binary(Time) ->
   {error, ebadtime};
-sign_data(Data, Verb, Path, Time) ->
-  gen_server:call(?MODULE, {sign_data, Data, Verb, Path, Time}).
+sign_data(C, Data, Verb, Path, Time) ->
+  gen_server:call(C, {sign_data, Data, Verb, Path, Time}).
 
-get_flos() ->
-  Res = gen_server:call(?MODULE, get_flos),
+get_flos(C) ->
+  Res = gen_server:call(C, get_flos),
   parse_yield(get_flos, Res).
 
-async_get_flos() ->
-  gen_server:call(?MODULE, async_get_flos).
+async_get_flos(C) ->
+  gen_server:call(C, async_get_flos).
 
-yield_get_flos(Ref) ->
-  Res = gen_server:call(?MODULE, {yield, Ref}),
+yield_get_flos(C, Ref) ->
+  Res = gen_server:call(C, {yield, Ref}),
   parse_yield(get_flos, Res).
 
-retry(Flo, _Data) when not is_binary(Flo) ->
+retry(_, Flo, _Data) when not is_binary(Flo) ->
   {error, ebadflo};
-retry(Flo, Data) when is_list(Data) ->
-  retry(Flo, jiffy:encode({Data}));
-retry(Flo, Data) when is_map(Data) ->
-  retry(Flo, jiffy:encode(Data));
-retry(_, Data) when not is_binary(Data) ->
+retry(C, Flo, Data) when is_list(Data) ->
+  retry(C, Flo, jiffy:encode({Data}));
+retry(C, Flo, Data) when is_map(Data) ->
+  retry(C, Flo, jiffy:encode(Data));
+retry(_, _, Data) when not is_binary(Data) ->
   {error, ebadretry};
-retry(Flo, Data) ->
-  Res = gen_server:call(?MODULE, {retry, Flo, Data}),
+retry(C, Flo, Data) ->
+  Res = gen_server:call(C, {retry, Flo, Data}),
   parse_yield(flo, Res).
 
-async_retry(Flo, _Data) when not is_binary(Flo) ->
+async_retry(_, Flo, _Data) when not is_binary(Flo) ->
   {error, ebadflo};
-async_retry(Flo, Data) when is_list(Data) ->
-  async_retry(Flo, jiffy:encode({Data}));
-async_retry(Flo, Data) when is_map(Data) ->
-  async_retry(Flo, jiffy:encode(Data));
-async_retry(_, Data) when not is_binary(Data) ->
+async_retry(C, Flo, Data) when is_list(Data) ->
+  async_retry(C, Flo, jiffy:encode({Data}));
+async_retry(C, Flo, Data) when is_map(Data) ->
+  async_retry(C, Flo, jiffy:encode(Data));
+async_retry(_, _, Data) when not is_binary(Data) ->
   {error, ebadretry};
-async_retry(Flo, Data) ->
-  gen_server:call(?MODULE, {async_retry, Flo, Data}).
+async_retry(C, Flo, Data) ->
+  gen_server:call(C, {async_retry, Flo, Data}).
 
-yield_retry(Ref) ->
-  Res = gen_server:call(?MODULE, {yield, Ref}),
+yield_retry(C, Ref) ->
+  Res = gen_server:call(C, {yield, Ref}),
   parse_yield(flo, Res).
 
-invoke(Flo, _Data) when not is_binary(Flo) ->
+invoke(_, Flo, _Data) when not is_binary(Flo) ->
   {error, ebadflo};
-invoke(Flo, Data) when is_list(Data) ->
-  invoke(Flo, jiffy:encode({Data}));
-invoke(Flo, Data) when is_map(Data) ->
-  invoke(Flo, jiffy:encode(Data));
-invoke(_, Data) when not is_binary(Data) ->
+invoke(C, Flo, Data) when is_list(Data) ->
+  invoke(C, Flo, jiffy:encode({Data}));
+invoke(C, Flo, Data) when is_map(Data) ->
+  invoke(C, Flo, jiffy:encode(Data));
+invoke(_, _, Data) when not is_binary(Data) ->
   {error, ebadinvoke};
-invoke(Flo, Data) ->
-  Res = gen_server:call(?MODULE, {invoke, Flo, Data}),
+invoke(C, Flo, Data) ->
+  Res = gen_server:call(C, {invoke, Flo, Data}),
   parse_yield(flo, Res).
 
-async_invoke(Flo, _Data) when not is_binary(Flo) ->
+async_invoke(_, Flo, _Data) when not is_binary(Flo) ->
   {error, ebadflo};
-async_invoke(Flo, Data) when is_list(Data) ->
-  async_invoke(Flo, jiffy:encode({Data}));
-async_invoke(Flo, Data) when is_map(Data) ->
-  async_invoke(Flo, jiffy:encode(Data));
-async_invoke(_, Data) when not is_binary(Data) ->
+async_invoke(C, Flo, Data) when is_list(Data) ->
+  async_invoke(C, Flo, jiffy:encode({Data}));
+async_invoke(C, Flo, Data) when is_map(Data) ->
+  async_invoke(C, Flo, jiffy:encode(Data));
+async_invoke(_, _, Data) when not is_binary(Data) ->
   {error, ebadinvoke};
-async_invoke(Flo, Data) ->
-  gen_server:call(?MODULE, {async_invoke, Flo, Data}).
+async_invoke(C, Flo, Data) ->
+  gen_server:call(C, {async_invoke, Flo, Data}).
 
-yield_invoke(Ref) ->
-  Res = gen_server:call(?MODULE, {yield, Ref}),
+yield_invoke(C, Ref) ->
+  Res = gen_server:call(C, {yield, Ref}),
   parse_yield(flo, Res).
 
-inputs(Flo) when not is_binary(Flo) ->
+inputs(_, Flo) when not is_binary(Flo) ->
   {error, ebadflo};
-inputs(Flo) ->
-  Res = gen_server:call(?MODULE, {inputs, Flo}),
+inputs(C, Flo) ->
+  Res = gen_server:call(C, {inputs, Flo}),
   parse_yield(inputs, Res).
 
-async_inputs(Flo) when not is_binary(Flo) ->
+async_inputs(_, Flo) when not is_binary(Flo) ->
   {error, ebadflo};
-async_inputs(Flo) ->
-  gen_server:call(?MODULE, {async_inputs, Flo}).
+async_inputs(C, Flo) ->
+  gen_server:call(C, {async_inputs, Flo}).
 
-yield_inputs(Ref) ->
-  Res = gen_server:call(?MODULE, {yield, Ref}),
+yield_inputs(C, Ref) ->
+  Res = gen_server:call(C, {yield, Ref}),
   parse_yield(inputs, Res).
 
-inject(Flo, _Data) when not is_binary(Flo) ->
+inject(_, Flo, _Data) when not is_binary(Flo) ->
   {error, ebadflo};
-inject(Flo, Data) when is_list(Data) ->
-  inject(Flo, jiffy:encode({Data}));
-inject(Flo, Data) when is_map(Data) ->
-  inject(Flo, jiffy:encode(Data));
-inject(_, Data) when not is_binary(Data) ->
+inject(C, Flo, Data) when is_list(Data) ->
+  inject(C, Flo, jiffy:encode({Data}));
+inject(C, Flo, Data) when is_map(Data) ->
+  inject(C, Flo, jiffy:encode(Data));
+inject(_, _, Data) when not is_binary(Data) ->
   {error, ebadinject};
-inject(Flo, Data) ->
-  Res = gen_server:call(?MODULE, {inject, Flo, Data}),
+inject(C, Flo, Data) ->
+  Res = gen_server:call(C, {inject, Flo, Data}),
   parse_yield(flo, Res).
 
-async_inject(Flo, _Data) when not is_binary(Flo) ->
+async_inject(_, Flo, _Data) when not is_binary(Flo) ->
   {error, ebadflo};
-async_inject(Flo, Data) when is_list(Data) ->
-  async_inject(Flo, jiffy:encode({Data}));
-async_inject(Flo, Data) when is_map(Data) ->
-  async_inject(Flo, jiffy:encode(Data));
-async_inject(_, Data) when not is_binary(Data) ->
+async_inject(C, Flo, Data) when is_list(Data) ->
+  async_inject(C, Flo, jiffy:encode({Data}));
+async_inject(C, Flo, Data) when is_map(Data) ->
+  async_inject(C, Flo, jiffy:encode(Data));
+async_inject(_, _, Data) when not is_binary(Data) ->
   {error, ebadinject};
-async_inject(Flo, Data) ->
-  gen_server:call(?MODULE, {async_inject, Flo, Data}).
+async_inject(C, Flo, Data) ->
+  gen_server:call(C, {async_inject, Flo, Data}).
 
-yield_inject(Ref) ->
-  Res = gen_server:call(?MODULE, {yield, Ref}),
+yield_inject(C, Ref) ->
+  Res = gen_server:call(C, {yield, Ref}),
   parse_yield(flo, Res).
 
-schedule(Flo, _Data) when not is_binary(Flo) ->
+schedule(_, Flo, _Data) when not is_binary(Flo) ->
   {error, ebadflo};
-schedule(Flo, Data) when is_list(Data) ->
-  schedule(Flo, jiffy:encode({Data}));
-schedule(Flo, Data) when is_map(Data) ->
-  schedule(Flo, jiffy:encode(Data));
-schedule(_, Data) when not is_binary(Data) ->
+schedule(C, Flo, Data) when is_list(Data) ->
+  schedule(C, Flo, jiffy:encode({Data}));
+schedule(C, Flo, Data) when is_map(Data) ->
+  schedule(C, Flo, jiffy:encode(Data));
+schedule(_, _, Data) when not is_binary(Data) ->
   {error, ebadschedule};
-schedule(Flo, Data) ->
-  Res = gen_server:call(?MODULE, {schedule, Flo, Data}),
+schedule(C, Flo, Data) ->
+  Res = gen_server:call(C, {schedule, Flo, Data}),
   parse_yield(schedule, Res).
 
-async_schedule(Flo, _Data) when not is_binary(Flo) ->
+async_schedule(_, Flo, _Data) when not is_binary(Flo) ->
   {error, ebadflo};
-async_schedule(Flo, Data) when is_list(Data) ->
-  async_schedule(Flo, jiffy:encode({Data}));
-async_schedule(Flo, Data) when is_map(Data) ->
-  async_schedule(Flo, jiffy:encode(Data));
-async_schedule(_, Data) when not is_binary(Data) ->
+async_schedule(C, Flo, Data) when is_list(Data) ->
+  async_schedule(C, Flo, jiffy:encode({Data}));
+async_schedule(C, Flo, Data) when is_map(Data) ->
+  async_schedule(C, Flo, jiffy:encode(Data));
+async_schedule(_, _, Data) when not is_binary(Data) ->
   {error, ebadschedule};
-async_schedule(Flo, Data) ->
-  gen_server:call(?MODULE, {async_schedule, Flo, Data}).
+async_schedule(C, Flo, Data) ->
+  gen_server:call(C, {async_schedule, Flo, Data}).
 
-yield_schedule(Ref) ->
-  Res = gen_server:call(?MODULE, {yield, Ref}),
+yield_schedule(C, Ref) ->
+  Res = gen_server:call(C, {yield, Ref}),
   parse_yield(schedule, Res).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%

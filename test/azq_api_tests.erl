@@ -106,87 +106,87 @@ kill_test_api(S) ->
 %%% TEST FUNCTIONS %%%
 %%%%%%%%%%%%%%%%%%%%%%
 
-sign_data_map(_S) ->
+sign_data_map(S) ->
   Data = #{foo => bar},
   Verb = get,
   Path = <<"path">>,
   Time = <<"t">>,
-  {ok, Act} = azq_api:sign_data(Data, Verb, Path, Time),
+  {ok, Act} = azq_api:sign_data(S, Data, Verb, Path, Time),
   Exp = azq_api_utils:sign_data(<<"secret">>, jiffy:encode(Data), Verb, Path, Time),
   ?_assertEqual(Act, Exp).
 
-sign_data_list(_S) ->
+sign_data_list(S) ->
   Data = [{foo, bar}],
   Verb = get,
   Path = <<"path">>,
   Time = <<"t">>,
-  {ok, Act} = azq_api:sign_data(Data, Verb, Path, Time),
+  {ok, Act} = azq_api:sign_data(S, Data, Verb, Path, Time),
   Exp = azq_api_utils:sign_data(<<"secret">>, jiffy:encode({Data}), Verb, Path, Time),
   ?_assertEqual(Act, Exp).
 
-sign_data_bin(_S) ->
+sign_data_bin(S) ->
   Data = jiffy:encode(#{foo => bar}),
   Verb = get,
   Path = <<"path">>,
   Time = <<"t">>,
-  {ok, Act} = azq_api:sign_data(Data, Verb, Path, Time),
+  {ok, Act} = azq_api:sign_data(S, Data, Verb, Path, Time),
   Exp = azq_api_utils:sign_data(<<"secret">>, Data, Verb, Path, Time),
   ?_assertEqual(Act, Exp).
 
-retry_error(_S) ->
-  Res = azq_api:retry(bad, #{}),
+retry_error(S) ->
+  Res = azq_api:retry(S, bad, #{}),
   ?assertMatch({error, _}, Res),
-  Res2 = azq_api:retry(<<"flo">>, bad),
+  Res2 = azq_api:retry(S, <<"flo">>, bad),
   ?_assertMatch({error, _}, Res2).
 
-async_retry_error(_S) ->
-  Res = azq_api:async_retry(bad, #{}),
+async_retry_error(S) ->
+  Res = azq_api:async_retry(S, bad, #{}),
   ?assertMatch({error, _}, Res),
-  Res2 = azq_api:async_retry(<<"flo">>, bad),
+  Res2 = azq_api:async_retry(S, <<"flo">>, bad),
   ?_assertMatch({error, _}, Res2).
 
-invoke_error(_S) ->
-  Res = azq_api:invoke(bad, #{}),
+invoke_error(S) ->
+  Res = azq_api:invoke(S, bad, #{}),
   ?assertMatch({error, _}, Res),
-  Res2 = azq_api:invoke(<<"flo">>, bad),
+  Res2 = azq_api:invoke(S, <<"flo">>, bad),
   ?_assertMatch({error, _}, Res2).
 
-async_invoke_error(_S) ->
-  Res = azq_api:async_invoke(bad, #{}),
+async_invoke_error(S) ->
+  Res = azq_api:async_invoke(S, bad, #{}),
   ?assertMatch({error, _}, Res),
-  Res2 = azq_api:async_invoke(<<"flo">>, bad),
+  Res2 = azq_api:async_invoke(S, <<"flo">>, bad),
   ?_assertMatch({error, _}, Res2).
 
-inputs_error(_S) ->
-  Res = azq_api:inputs(bad),
+inputs_error(S) ->
+  Res = azq_api:inputs(S, bad),
   ?_assertMatch({error, _}, Res).
 
-async_inputs_error(_S) ->
-  Res = azq_api:async_inputs(bad),
+async_inputs_error(S) ->
+  Res = azq_api:async_inputs(S, bad),
   ?_assertMatch({error, _}, Res).
 
-inject_error(_S) ->
-  Res = azq_api:inject(bad, #{}),
+inject_error(S) ->
+  Res = azq_api:inject(S, bad, #{}),
   ?assertMatch({error, _}, Res),
-  Res2 = azq_api:inject(<<"flo">>, bad),
+  Res2 = azq_api:inject(S, <<"flo">>, bad),
   ?_assertMatch({error, _}, Res2).
 
-async_inject_error(_S) ->
-  Res = azq_api:async_inject(bad, #{}),
+async_inject_error(S) ->
+  Res = azq_api:async_inject(S, bad, #{}),
   ?assertMatch({error, _}, Res),
-  Res2 = azq_api:async_inject(<<"flo">>, bad),
+  Res2 = azq_api:async_inject(S, <<"flo">>, bad),
   ?_assertMatch({error, _}, Res2).
 
-schedule_error(_S) ->
-  Res = azq_api:schedule(bad, #{}),
+schedule_error(S) ->
+  Res = azq_api:schedule(S, bad, #{}),
   ?assertMatch({error, _}, Res),
-  Res2 = azq_api:schedule(<<"flo">>, bad),
+  Res2 = azq_api:schedule(S, <<"flo">>, bad),
   ?_assertMatch({error, _}, Res2).
 
-async_schedule_error(_S) ->
-  Res = azq_api:async_schedule(bad, #{}),
+async_schedule_error(S) ->
+  Res = azq_api:async_schedule(S, bad, #{}),
   ?assertMatch({error, _}, Res),
-  Res2 = azq_api:async_schedule(<<"flo">>, bad),
+  Res2 = azq_api:async_schedule(S, <<"flo">>, bad),
   ?_assertMatch({error, _}, Res2).
 
 create_promise() ->
