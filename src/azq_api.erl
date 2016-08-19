@@ -29,8 +29,21 @@
          schedule/2,
          async_schedule/2,
          yield_schedule/1]).
+-export([promise_get_flos/1,
+         promise_retry/3,
+         promise_invoke/3,
+         promise_inputs/2,
+         promise_inject/3,
+         promise_schedule/3,
+         attach_promise/3,
+         create_promise/2,
+         remove_promise/2,
+         parse_yield/2]).
 
 -include("azq_api.hrl").
+
+-define(CONNECT_TIME, 30000).
+-define(RECV_TIME, 30000).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% INTERFACE FUNCTIONS %%%
@@ -303,8 +316,8 @@ handle_info({hackney_response, CRef, done}, State) ->
   P = maps:get(CRef, State#api_state.promises),
   check_promise_state(P, State).
 
-code_change(_OldVsn, _State, _Extra) ->
-  ok.
+code_change(_OldVsn, State, _Extra) ->
+  {ok, State}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%
 %%% HELPER FUNCTIONS %%%
@@ -362,7 +375,7 @@ remove_promise(Ref, State) ->
 async_request(Req = #request{method=M, body=B}, State) ->
   URL = azq_api_utils:construct_url(Req, State),
   H = azq_api_utils:construct_headers(Req, State),
-  Opts = [async, {connect_timeout}, {recv_timeout}],
+  Opts = [async, {connect_timeout, ?CONNECT_TIME}, {recv_timeout, ?RECV_TIME}],
   hackney:request(M, URL, H, B, Opts).
 
 parse_yield(get_flos, {ok, Res}) ->

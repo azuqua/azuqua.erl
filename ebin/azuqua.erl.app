@@ -3,5 +3,5 @@
 	{vsn, "0.0.1"},
 	{modules, ['azq_api','azq_api_bin','azq_api_utils']},
 	{registered, []},
-	{applications, [kernel,stdlib,jiffy,hackney,lager]}
+	{applications, [kernel,stdlib,jiffy,hackney,lager,edown]}
 ]}.
