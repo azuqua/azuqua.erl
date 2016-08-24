@@ -2,6 +2,8 @@
 
 -behavior(gen_server).
 
+-compile({parse_transform, lager_transform}).
+
 -export([init/1,
          terminate/2,
          handle_call/3,
@@ -298,27 +300,36 @@ handle_call({yield, Ref}, From, State) ->
 handle_cast(_Ref, _State) ->
   ok.
 
-handle_info({hackney_response, CRef, {status, Status, _Reason}}, State) when Status >= 400 ->
+handle_info({hackney_response, CRef, {status, Status, Reason}}, State) when Status >= 400 ->
   P = maps:get(CRef, State#api_state.promises),
   P2 = P#promise{data={error, <<>>}},
   NExecs = maps:put(CRef, P2, State#api_state.promises),
-  {noreply, State#api_state{promises=NExecs}};
-handle_info({hackney_response, CRef, {status, _Status, _Reason}}, State) ->
+  State2 = State#api_state{promises=NExecs},
+  lager:debug("error state: ~p, ~p, ~p~n", [CRef, Status, Reason]),
+  {noreply, State2};
+handle_info({hackney_response, CRef, {status, Status, Reason}}, State) ->
   P = maps:get(CRef, State#api_state.promises),
   P2 = P#promise{data={ok, <<>>}},
   NExecs = maps:put(CRef, P2, State#api_state.promises),
+  lager:debug("ok state: ~p, ~p, ~p~n", [P2, Status, Reason]),
   {noreply, State#api_state{promises=NExecs}};
-handle_info({hackney_response, _CRef, {headers, _Headers}}, State) ->
+handle_info({hackney_response, CRef, {headers, Headers}}, State) ->
+  lager:debug("headers state: ~p, ~p~n", [CRef, Headers]),
   {noreply, State};
 handle_info({hackney_response, CRef, Bin}, State) when is_binary(Bin) ->
   P = maps:get(CRef, State#api_state.promises),
   {At, Bin0} = P#promise.data,
   P2 = P#promise{data={At, <<Bin0/binary, Bin/binary>>}},
   NExecs = maps:put(CRef, P2, State#api_state.promises),
+  lager:debug("body state: ~p, ~p~n", [CRef, Bin]),
   {noreply, State#api_state{promises=NExecs}};
 handle_info({hackney_response, CRef, done}, State) ->
   P = maps:get(CRef, State#api_state.promises),
-  check_promise_state(P, State).
+  P2 = P#promise{state=done},
+  NExecs = maps:put(CRef, P2, State#api_state.promises),
+  State2 = State#api_state{promises=NExecs},
+  lager:debug("finish state: ~p~n", [P2]),
+  check_promise_state(P2, State2).
 
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
@@ -411,11 +422,11 @@ yield_promise(Ref, From, State) ->
 
 find_promise(undefined, _Ref, _From, State) ->
   {reply, {error, enoref}, State};
-find_promise(P = #promise{return=undefined}, Ref, From, State) ->
-  P2 = P#promise{return=From},
-  NExecs = attach_promise(Ref, P2, State#api_state.promises),
+find_promise(#promise{return=undefined}, Ref, From, State) ->
+  NExecs = attach_promise(Ref, From, State#api_state.promises),
   State2 = State#api_state{promises=NExecs},
-  check_promise_state(P2, State2);
+  P = maps:get(Ref, NExecs),
+  check_promise_state(P, State2);
 find_promise(_, _, _, State) ->
   {reply, {error, eyielded}, State}.
 

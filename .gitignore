@@ -8,4 +8,6 @@ test/*.beam
 rel/*
 _rel/*
 relx
-azuqua.erl.d
+azuqua_erl.d
+logs/*
+log/*
