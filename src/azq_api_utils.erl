@@ -28,7 +28,10 @@ verb_to_bin(delete) ->
   <<"delete">>.
 
 create_timestamp() ->
-  erlang:integer_to_binary(erlang:system_time(milli_seconds)).
+  {{Y, M, D}, {H, MM, S}} = calendar:universal_time(),
+  Format = "~4.10.0B-~2.10.0B-~2.10.0BT~2.10.0B:~2.10.0B:~2.10.0BZ",
+  F = io_lib:format(Format, [Y, M, D, H, MM, S]),
+  erlang:list_to_binary(lists:flatten(F)).
 
 construct_url(#request{path=P, qs=QS}, #api_state{opts=O}) ->
   Base = maps:get(base, O, <<>>),

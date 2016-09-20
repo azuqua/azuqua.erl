@@ -15,9 +15,6 @@
 -include_lib("common_test/include/ct.hrl").
 -include("../src/azq_api.hrl").
 
--define(API_KEY, <<"d9da0ea5efb58b22545f909e7754235bb9e7fad5">>).
--define(API_SECRET, <<"5686f7797cd31e366608b08fb9460a9926facacd876bb5f70cf872083a34f2cb">>).
-
 %%%%%%%%%%%%%%%%%%%%%%
 %%% INIT FUNCTIONS %%%
 %%%%%%%%%%%%%%%%%%%%%%
@@ -42,14 +39,20 @@ groups() ->
 
 init_per_suite(Config) ->
   hackney:start(),
-  Config.
+  Key = erlang:list_to_binary(os:getenv("API_KEY")),
+  Secret = erlang:list_to_binary(os:getenv("API_SECRET")),
+  [{key, Key}, {secret, Secret} | Config].
 
 end_per_suite(Config) ->
   hackney:stop(),
   Config.
 
 init_per_group(internal, Config) ->
-  {ok, State} = azq_api:init([?API_KEY, ?API_SECRET]),
+  BaseStr = os:getenv("API_BASE", <<"https://api.azuqua.com">>),
+  Base = erlang:list_to_binary(BaseStr),
+  Headers = [{<<"Content-Type">>, <<"application/json">>}],
+  Opts = #{base => Base, headers => Headers},
+  {ok, State} = azq_api:init([?config(key, Config), ?config(secret, Config), Opts]),
   [{state, State} | Config];
 init_per_group(external, Config) ->
   Config.
@@ -62,7 +65,12 @@ end_per_group(external, Config) ->
 init_per_testcase(promise_get_flos_test, Config) ->
   Config;
 init_per_testcase(_, Config) ->
-  {ok, Pid} = azq_api:new(?API_KEY, ?API_SECRET),
+  Key = ?config(key, Config),
+  Secret = ?config(secret, Config),
+  BaseStr = os:getenv("API_BASE", <<"https://api.azuqua.com">>),
+  Base = erlang:list_to_binary(BaseStr),
+  Headers = [{<<"Content-Type">>, <<"application/json">>}],
+  {ok, Pid} = azq_api:new(Key, Secret, #{base => Base, headers => Headers}),
   [{api_pid, Pid} | Config].
 
 end_per_testcase(promise_get_flos_test, Config) ->
@@ -78,14 +86,14 @@ end_per_testcase(_, Config) ->
 
 get_flos_sync_test(Config) ->
   Pid = ?config(api_pid, Config),
-  {error, Flos} = azq_api:get_flos(Pid),
-  true = erlang:is_map(Flos).
+  {ok, Flos} = azq_api:get_flos(Pid),
+  true = erlang:is_list(Flos).
 
 get_flos_async_test(Config) ->
   Pid = ?config(api_pid, Config),
   Ref = azq_api:async_get_flos(Pid),
-  {error, Flos} = azq_api:yield_get_flos(Pid, Ref),
-  true = erlang:is_map(Flos).
+  {ok, Flos} = azq_api:yield_get_flos(Pid, Ref),
+  true = erlang:is_list(Flos).
 
 promise_get_flos_test(Config) ->
   {Ref, NState} = azq_api:promise_get_flos(?config(state, Config)),
@@ -93,5 +101,3 @@ promise_get_flos_test(Config) ->
   init = P#promise.state,
   Ref = P#promise.cref,
   Config.
-
-
