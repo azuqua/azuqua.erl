@@ -1,0 +1,13 @@
+deps/*
+ebin/*.beam
+ebin/test
+.rebar/*
+.eunit/*
+test/*.beam
+.erlang.mk/*
+rel/*
+_rel/*
+relx
+azuqua_erl.d
+logs/*
+log/*
